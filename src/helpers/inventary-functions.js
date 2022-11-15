@@ -1,33 +1,28 @@
 const mysql = require('mysql');
 inventaryFns = {};
 
-inventaryFns.updateProduct = (connection, productData, productID ) => {
+inventaryFns.updateProduct = (db, productData, productID ) => {
     // connection.
-    const updateQuery = `UPDATE products set product_name = '${productData.product_name}', product_stock = '${productData.product_stock}', product_sellingprice = '${productData.product_sellingprice}', product_adquisitionprice = '${productData.product_adquisitionprice}', product_description = '${productData.product_description}', product_category = '${productData.productCategory}' WHERE product_id = ${productID}`
+    const updateQuery = `UPDATE products set product_name = '${productData.product_name}', product_stock = '${productData.product_stock}', product_sellingprice = '${productData.product_sellingprice}', product_adquisitionprice = '${productData.product_adquisitionprice}', product_description = '${productData.product_description}', product_category = '${productData.product_category}', product_code = '${productData.product_code}' WHERE product_id = (?)`
     console.log(updateQuery);
-    connection.query(updateQuery, (error, results, fields) => {
-        if (error) {
-            console.error(error);
-            return;
-        } else if (results) {
-            console.log('Update correcto weon');
-            console.log(results);
-            return results;
-        }
-    })
+    db.run(updateQuery, productID, (err) => {
+        if (err) {
+            console.error(err);
+        } else {
+            console.log('data changed all good');
+        };
+    });
 }
 
-inventaryFns.deleteProduct = (connection, productID) => {
-    const deleteQuery = `DELETE FROM products WHERE product_id=${productID}`;
-    connection.query(deleteQuery, (error, results, fields) => {
-        if (error) {
-            console.error(error);
-            return;
-        } else if (results) {
-            console.log(results);
-            return results;
+inventaryFns.deleteProduct = (db, productID) => {
+    const deleteQuery = `DELETE FROM products WHERE product_id=(?)`;
+    db.run(deleteQuery,productID, (err) => {
+        if (err) {
+            console.error(err)
+        } else {
+            console.log('Deleted from db')
         }
-    })
+    });
 }
  
 module.exports = inventaryFns;

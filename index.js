@@ -3,9 +3,11 @@ const app = express();
 const morgan = require('morgan');
 const mysql = require('mysql');
 const cors = require('cors');
-const inventaryFns = require('./helpers/inventary-functions');
-const databaseFns = require('./helpers/database-functions');
-const posFns =  require('./helpers/POS-functions.js');
+const inventaryFns = require('./src/helpers/inventary-functions');
+const databaseFns = require('./src/helpers/database-functions');
+const fs = require('fs');
+const sqlite3 = require('sqlite3').verbose();
+
 //SETTINGS
 app.set('port', 3000);
 
@@ -14,17 +16,11 @@ app.use(morgan('dev'));
 app.use(express.json());
 app.use(cors());
 app.use(express.urlencoded({extended: false}));
-
-const connection = mysql.createConnection({
-    host: 'localhost',
-    user: 'root',
-    password: '',
-    database: 'nutriliosdb'
-});
-
-connection.connect((err) => {
-    if (err) throw err;
-    console.log("Connected to database");
+const db = new sqlite3.Database(`${__dirname}/src/db/nutriliosdb.sqlite`, (err) => {
+    if (err) {
+        return console.error(err);
+    }
+    console.log('connected to database brah');
 });
 
 //ROUTES
@@ -36,8 +32,8 @@ app.post('/pointOfSale', (req, res) => {
     const {action, params} = req.body;
     switch (action) {
         case 'getProductsForSale':
-            const {tableName, columnsToRead} = params;
-            const availableProductsResponse = databaseFns.getSpecificTableColumns(connection, tableName, columnsToRead, res);
+            const { columnsToRead} = params;
+            const availableProductsResponse = databaseFns.getSpecificTableColumns(db, 'products', columnsToRead, res);
             if (availableProductsResponse) {
                 console.log('todo bn')
             } else {
@@ -46,16 +42,43 @@ app.post('/pointOfSale', (req, res) => {
             }
         break;
         case 'registerSale' :
+            let { productID, productStock, soldUnits } = params;
+            debugger;
+            const updateQuery = `UPDATE products set product_stock = '${parseInt(productStock) - parseInt(soldUnits)}' WHERE product_id= (?)`
+            db.run(updateQuery, productID, (err) => {
+                if (err) {
+                    console.error(err);
+                } else {
+                    console.log('Data changed in inventary');
+                }
+            });
+            debugger;
+            break;
+    }
+});
+
+app.post('/inventary', async (req, res) => {
+    const {action, params} = req.body;
+    switch(action) {
+        case 'registerNewProduct':
+            const {tableColumns, insertValues} = params; 
+            const insertResponse = await databaseFns.insertIntoDB('products', tableColumns, insertValues, db);
+            if (insertResponse) {
+                const productInsertID = await databaseFns.getLastInsertID('products', 'product_id', db);
+                console.log('El ID donde debe ir', productInsertID);
+                res.send(JSON.stringify(productInsertID));
+            }
         break;
     }
 });
+
 
 app.post('/adminCuts', (req, res) => {
     const {action, params} = req.body;
     switch (action) {
         case 'getDateSales' :
             const {tableName, conditionObj} = params;
-            const selectedDateSalesResponse = databaseFns.filterTableRows(connection, tableName, conditionObj, res);
+            const selectedDateSalesResponse = databaseFns.filterTableRows(db, tableName, conditionObj, res);
             if (selectedDateSalesResponse) {
                 console.log('todo bn');
             } else {
@@ -63,56 +86,24 @@ app.post('/adminCuts', (req, res) => {
                 res.end();
             }
         }
-})
+});
 
 app.post('/getAllTableData', (req, res) => {
     const {tableName} = req.body;
     const readQuery = `SELECT * FROM ${tableName}`;
-    connection.query(readQuery, (error, results, fields) => {
-        if (error) {
-            console.error(error);
-            connection.end();
-            res.end();
-            return;
-        } else if (results) {
-            res.send(results);
+    db.all(readQuery, [], (err, rows) => {
+        if (err) {
+            throw err;
+        } else if (rows) {
+            res.send(rows)
         }
-    });
+    })
 });
 
-app.post('/insertIntoDB', (req,res) => {
+app.post('/insertIntoDB', async (req,res) => {
     const {tableName, tableColumns, insertValues} = req.body;
-    const numOfColumns = tableColumns.length;
-    const numOfValues = insertValues.length;
-    let query = `INSERT INTO ${tableName} (`;
-    tableColumns.forEach((columnName, index) => {
-        query += `${columnName}`;
-        if(index + 1 === numOfColumns) {
-            query += ') '; 
-        } else {
-            query += ', ';
-        }
-    });
-    query += `VALUES (`;
-    insertValues.forEach((value, index) => {
-        query +=`'${value}'`
-        if (index + 1 === numOfValues) {
-            query += ') ';
-        } else {
-            query += ', ';
-        }
-    });
-    connection.query(query, (error, results, fields) => {
-        if (error) {
-            console.error(error);
-            res.end();
-            return;
-        } else if (results) {
-            res.send(results);
-            console.log('Insertado con insertIntoDB todo bn todo bn');
-            console.log(results);
-        }
-    });
+    const response = await databaseFns.insertIntoDB(tableName, tableColumns, insertValues, db);
+    console.log('la respuesta es', response);
 });
 
 app.post('/deleteFromDB', (req, res) => {
@@ -129,7 +120,7 @@ app.post('/deleteFromDB', (req, res) => {
 
 app.post('/updateInventaryProduct', (req, res) => {
     const {updateData, productID} = req.body;
-    const response = inventaryFns.updateProduct(connection, updateData, productID);
+    const response = inventaryFns.updateProduct(db, updateData, productID);
     if (response) {
         res.send('200');
         res.end();
@@ -143,7 +134,7 @@ app.post('/updateInventaryProduct', (req, res) => {
 
 app.post('/deleteInventaryProduct', (req, res) => {
     const {productID} = req.body;
-    const response = inventaryFns.deleteProduct(connection, productID);
+    const response = inventaryFns.deleteProduct(db, productID);
     if (response) {
         res.send('200');
         res.end();
