@@ -15,13 +15,16 @@ inventaryFns.updateProduct = (db, productData, productID ) => {
 }
 
 inventaryFns.deleteProduct = (db, productID) => {
-    const deleteQuery = `DELETE FROM products WHERE product_id=(?)`;
-    db.run(deleteQuery,productID, (err) => {
-        if (err) {
-            console.error(err)
-        } else {
-            console.log('Deleted from db')
-        }
+    const deleteQuery = `UPDATE products SET product_hide = 1 WHERE product_id = (?)`;
+    return new Promise((slvr, rjct) => {
+        db.run(deleteQuery,productID, (err) => {
+            if (err) {
+                console.error(err)
+                slvr(false);
+            } else {
+                slvr(true);
+            }
+        });
     });
 }
  

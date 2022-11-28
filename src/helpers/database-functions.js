@@ -2,7 +2,7 @@ const mysql =  require('mysql');
 databaseFns = {};
 
 
-databaseFns.updateRow = (db, updateData, updateID, tableName, res) => {
+databaseFns.updateRow = (db, updateData, updateID, tableName, idColumn) => {
     let updateQuery = `UPDATE ${tableName} set `;
     //RECIBE JSON CON INFORMACION A UPDEATEAR
     const fildsToUpdate = Object.keys(updateData).length;
@@ -10,17 +10,21 @@ databaseFns.updateRow = (db, updateData, updateID, tableName, res) => {
         if (index + 1 < fildsToUpdate) {
             updateQuery += `${columnName} = '${content}', `
         } else {
-            updateQuery += `${columnName} = '${content}'`
+            updateQuery += `${columnName} = '${content} '`
         }
     });
+    updateQuery += `WHERE ${idColumn} = ${updateID}`
     console.log(updateQuery);
-    db.run(updateQuery, updateID, (err) => {
-        if (err) {
-            console.error(err);
-        } else {
-            console.log('data changed all good');
-            res.send(true);
-        }
+    return new Promise((slvr, reject) => {
+        db.run(updateQuery, [] , (err) => {
+            if (err) {
+                console.error(err);
+                slvr(false)
+            } else {
+                console.log('data changed all good');
+                slvr(true);
+            }
+        });
     })
 }
 
@@ -74,16 +78,17 @@ databaseFns.insertIntoDB = (tableName, tableColumns, insertValues, db) => {
     });
 }
 
-databaseFns.deleteFromDB = (tableName, IDColumnName, ID, connection) => {
-    const deleteQuery = `DELETE FROM ${tableName} WHERE ${IDColumnName} = ${ID}`;
-    connection.query(deleteQuery, (error, results, fields) => {
-        if (error) {
-            console.error(error);
-            return;
-        } else if (results) {
-            console.log(results);
-            return results;
-        }
+databaseFns.deleteFromDB = (tableName, IDColumnName, ID, db) => {
+    const deleteQuery = `DELETE FROM ${tableName} WHERE ${IDColumnName} = (?)`;
+    return new Promise((slvr, reject) => {
+        db.run(deleteQuery, ID, (error) => {
+            if (error) {
+                console.error(error);
+                slvr(false);
+            } else {
+                slvr(true);
+            }
+        });
     });
 }
 
@@ -117,19 +122,21 @@ databaseFns.getSpecificTableColumns = (db, tableName, columnsToRead, res) => {
 
     }
 */
-databaseFns.filterTableRows = (db, tableName, conditionObj, res) => {
+databaseFns.filterTableRows = (db, tableName, conditionObj) => {
     const condition = Object.values(conditionObj)[0];
     const columnName = Object.keys(conditionObj)[0];
     const selectionQuery = `SELECT * FROM  ${tableName} WHERE ${columnName} = '${condition}'`;
-    const consultResult = db.all(selectionQuery, [] ,(error, results) => {
-        if (error) {
-            console.error();
-        } else if (results) {
-            res.send(results);
-            res.end();
-        }
+    return new Promise((rslv, rjct) => {
+        db.all(selectionQuery, [] ,(error, results) => {
+            if (error) {
+                rslv(false);
+                console.error();
+            } else if (results) {
+                rslv(results);
+                // res.end();
+            }
+        });
     });
-    return consultResult;
 }
 
 module.exports = databaseFns;
