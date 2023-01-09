@@ -28,7 +28,7 @@ app.get('/', (req, res) => {
     res.send('Hello world');
 });
 
-app.post('/pointOfSale', (req, res) => {
+app.post('/pointOfSale', async (req, res) => {
     const {action, params} = req.body;
     switch (action) {
         case 'getProductsForSale':
@@ -42,16 +42,36 @@ app.post('/pointOfSale', (req, res) => {
             }
         break;
         case 'registerSale' :
-            let { productID, productStock, soldUnits } = params;
-            debugger;
-            const updateQuery = `UPDATE products set product_stock = '${parseInt(productStock) - parseInt(soldUnits)}' WHERE product_id= (?)`
-            db.run(updateQuery, productID, (err) => {
-                if (err) {
-                    console.error(err);
-                } else {
-                    console.log('Data changed in inventary');
-                }
+            const { soldProducts } = params;
+            let productDataPromises = [];
+            JSON.parse(soldProducts).forEach((prod) => {
+                productDataPromises.push(databaseFns.selectSpecificRow(db, 'products', {product_id: prod.product_id}))
             });
+            const soldProductsData = await Promise.all(productDataPromises);
+            const dbUpdatesPromises = [];
+            let dbUpdates;
+            JSON.parse(soldProducts).forEach((prod) => {
+                const product = soldProductsData.find((soldProd) => soldProd.product_id === prod.product_id );
+                dbUpdatesPromises.push(databaseFns.updateRow(db, {product_stock: parseInt(product.product_stock) - parseInt(prod.unites)}, prod.product_id, 'products', 'product_id'));
+            });
+            try {
+                dbUpdates = Promise.all(dbUpdatesPromises);
+            } catch (error) {
+                dbUpdates = false;
+            }
+            // const productInStock = await (databaseFns.filterTableRows(db, 'products', {product_id: productID}))[0].product_stock;
+            // if (!productInStock) {
+            //     return;
+            // }
+
+            // const updateQuery = `UPDATE products set product_stock = '${parseInt(productInStock) - parseInt(soldUnits)}' WHERE product_id= (?)`
+            // db.run(updateQuery, productID, (err) => {
+            //     if (err) {
+            //         console.error(err);
+            //     } else {
+            //         console.log('Data changed in inventary');
+            //     }
+            // });
             debugger;
             break;
     }

@@ -108,7 +108,6 @@ databaseFns.getSpecificTableColumns = (db, tableName, columnsToRead, res) => {
         if (error) {
             console.error(error);
         } else if (results) {
-            console.log(results);
             res.send(results);
             res.end();
         }
@@ -122,6 +121,24 @@ databaseFns.getSpecificTableColumns = (db, tableName, columnsToRead, res) => {
 
     }
 */
+
+databaseFns.selectSpecificRow = (db, tableName, conditionObj) => {
+    const condition = Object.values(conditionObj)[0];
+    const columnName = Object.keys(conditionObj)[0];
+    const selectionQuery = `SELECT * FROM  ${tableName} WHERE ${columnName} = '${condition}'`;
+    return new Promise((rslv, rjct) => {
+        db.all(selectionQuery, [] ,(error, results) => {
+            if (error) {
+                rslv(false);
+                console.error();
+            } else if (results) {
+                rslv(results[0]);
+                // res.end();
+            }
+        });
+    });
+}
+
 databaseFns.filterTableRows = (db, tableName, conditionObj) => {
     const condition = Object.values(conditionObj)[0];
     const columnName = Object.keys(conditionObj)[0];
